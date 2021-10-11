@@ -1,4 +1,3 @@
-from sitemapparser.exporters import CSVExporter
 from sitemapparser import SiteMapParser
 from sitemapparser.url_set import UrlSet
 from typing import List
@@ -60,9 +59,11 @@ def read_sitemap(sitemap_url, basic_auth_user : str, basic_auth_password: str) -
         urls = sm.get_urls()
     return urls
 
-def print_sitemap(sitemap_url : str, basic_auth_user : str, basic_auth_password: str):
+def print_sitemap(sitemap_url : str, basic_auth_user : str, basic_auth_password: str, remove_host: bool):
     urls = sorted(map(lambda url: url.loc, read_sitemap(sitemap_url, basic_auth_user, basic_auth_password)))
     for url in urls:
+        if remove_host:
+            url = url[url.index('/', url.index('://')+3):]
         print(url)
 
 import argparse
@@ -71,6 +72,7 @@ parser = argparse.ArgumentParser(description='Exports site map of a site.')
 parser.add_argument('url', help='the site map URL')
 parser.add_argument('--user', help='the basic auth user')
 parser.add_argument('--password', help='the basic auth password')
+parser.add_argument('--remove_host', type=bool, help='remove protocol and server from output', default=False)
 
 args = parser.parse_args()
-print_sitemap(args.url, args.user, args.password)
+print_sitemap(args.url, args.user, args.password, args.remove_host)
