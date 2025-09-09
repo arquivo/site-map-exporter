@@ -5,13 +5,14 @@ import logging
 from sitemapparser.data_helpers import data_to_element
 from sitemapparser.sitemap_index import SitemapIndex
 import requests
+import argparse
 
 
-class NAUSiteMapParser(SiteMapParser):
+class CustomSiteMapParser(SiteMapParser):
     """
     Overwrite site map parser, so we can add basic authentication when downloading the site maps.
     """
-    def __init__(self, uri, basic_auth_user, basic_auth_password):
+    def __init__(self, uri):
         """
         Parses and creates sitemap or url instances for the data retrieved
 
@@ -19,7 +20,7 @@ class NAUSiteMapParser(SiteMapParser):
         """
         self.logger = logging.getLogger(__name__)
 
-        data = download_uri_data(uri, basic_auth_user, basic_auth_password)
+        data = download_uri_data(uri)
         root_element = data_to_element(data)
 
         self.is_sitemap_index = self._is_sitemap_index_element(root_element)
@@ -31,48 +32,44 @@ class NAUSiteMapParser(SiteMapParser):
             self.logger.info("Root element is url set")
             self._url_set = UrlSet(root_element)
 
-def download_uri_data(uri, basic_auth_user, basic_auth_password):
+def download_uri_data(uri):
     """
     returns file object
     """
     logger = logging.getLogger(__name__)
-    logger.info('Requesting data from: {}'.format(uri))
+    logger.info("Requesting data from: %s", uri)
     # using requests to follow any redirects that happen
     headers = {'Content-Type': 'application/xml;charset=utf-8'}
-    if basic_auth_user:
-        r = requests.get(uri, headers=headers, auth=(basic_auth_user, basic_auth_password))
-    else:
-        r = requests.get(uri, headers=headers)
+    r = requests.get(uri, headers=headers, timeout=30)
     # ensure it's the decompressed content
     r.raw.decode_content = True
-    logger.debug("Request content: {}".format(r.content))
+    logger.debug("Request content: %s", r.content)
     return r.content
 
 
-def read_sitemap(sitemap_url, basic_auth_user : str, basic_auth_password: str) -> List[UrlSet]:
-    sm = NAUSiteMapParser(sitemap_url, basic_auth_user, basic_auth_password)
+def read_sitemap(sitemap_url) -> List[UrlSet]:
+    """
+    Reads the site map and returns a list of UrlSet objects.
+    """
+    sm = CustomSiteMapParser(sitemap_url)
     urls = []
     if sm.has_sitemaps():
         for sitemap in sm.get_sitemaps():
-            urls.extend(read_sitemap(sitemap, basic_auth_user, basic_auth_password))
+            urls.extend(read_sitemap(sitemap))
     if sm.has_urls():
         urls = sm.get_urls()
     return urls
 
-def print_sitemap(sitemap_url : str, basic_auth_user : str, basic_auth_password: str, remove_host: bool):
-    urls = sorted(map(lambda url: url.loc, read_sitemap(sitemap_url, basic_auth_user, basic_auth_password)))
+def print_sitemap(sitemap_url : str):
+    """
+    Prints the site map URLs.
+    """
+    urls = sorted(map(lambda url: url.loc, read_sitemap(sitemap_url)))
     for url in urls:
-        if remove_host:
-            url = url[url.index('/', url.index('://')+3):]
         print(url)
-
-import argparse
 
 parser = argparse.ArgumentParser(description='Exports site map of a site.')
 parser.add_argument('url', help='the site map URL')
-parser.add_argument('--user', help='the basic auth user')
-parser.add_argument('--password', help='the basic auth password')
-parser.add_argument('--remove_host', type=bool, help='remove protocol and server from output', default=False)
 
 args = parser.parse_args()
-print_sitemap(args.url, args.user, args.password, args.remove_host)
+print_sitemap(args.url)
